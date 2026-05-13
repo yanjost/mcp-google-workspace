@@ -22,14 +22,17 @@ export class GmailTools {
   // Helper methods for email content extraction
   private decodeBase64UrlString(base64UrlString: string): string {
     try {
-      const base64String = base64UrlString.replace(/-/g, '+').replace(/_/g, '/');
-      const padding = '='.repeat((4 - base64String.length % 4) % 4);
-      const base64 = base64String + padding;
-      return Buffer.from(base64, 'base64').toString('utf-8');
+      return this.decodeBase64UrlToBuffer(base64UrlString).toString('utf-8');
     } catch (error) {
       console.error('Error decoding base64 string:', error);
       return '[Error decoding content]';
     }
+  }
+
+  private decodeBase64UrlToBuffer(base64UrlString: string): Buffer {
+    const base64String = base64UrlString.replace(/-/g, '+').replace(/_/g, '/');
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    return Buffer.from(base64String + padding, 'base64');
   }
 
   /**
@@ -950,12 +953,11 @@ export class GmailTools {
         throw new Error('Attachment data not found');
       }
 
-      const decodedData = Buffer.from(attachmentData, 'base64').toString('utf-8');
-      const decodedContent = this.decodeBase64UrlString(decodedData);
+      const decodedBuffer = this.decodeBase64UrlToBuffer(attachmentData);
 
       if (saveToDisk) {
         const validatedPath = this.validateSavePath(saveToDisk);
-        fs.writeFileSync(validatedPath, decodedContent);
+        fs.writeFileSync(validatedPath, decodedBuffer);
         return [{
           type: 'text',
           text: `Attachment saved to ${validatedPath}`
@@ -963,7 +965,7 @@ export class GmailTools {
       } else {
         return [{
           type: 'text',
-          text: decodedContent
+          text: decodedBuffer.toString('utf-8')
         }];
       }
     } catch (error) {
@@ -1005,11 +1007,10 @@ export class GmailTools {
             throw new Error('Attachment data not found');
           }
 
-          const decodedData = Buffer.from(fileData, 'base64').toString('utf-8');
-          const decodedContent = this.decodeBase64UrlString(decodedData);
+          const decodedBuffer = this.decodeBase64UrlToBuffer(fileData);
 
           const validatedPath = this.validateSavePath(savePath);
-          fs.writeFileSync(validatedPath, decodedContent);
+          fs.writeFileSync(validatedPath, decodedBuffer);
 
           return {
             messageId,
