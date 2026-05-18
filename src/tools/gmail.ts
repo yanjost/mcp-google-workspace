@@ -37,6 +37,20 @@ export class GmailTools {
   }
 
   /**
+   * Encodes a header value per RFC 2047 if it contains non-ASCII characters.
+   * Subjects with accents, em-dashes, French apostrophes, etc. must be encoded
+   * or Gmail will render them as mojibake.
+   */
+  private encodeMimeHeader(value: string): string {
+    const sanitized = this.sanitizeHeader(value);
+    // ASCII-only: no encoding needed
+    if (/^[\x20-\x7E]*$/.test(sanitized)) return sanitized;
+    // RFC 2047 base64 encoding
+    const b64 = Buffer.from(sanitized, 'utf-8').toString('base64');
+    return `=?UTF-8?B?${b64}?=`;
+  }
+
+  /**
    * Validates that a save path does not escape its parent directory via traversal.
    */
   private validateSavePath(filePath: string): string {
@@ -720,12 +734,15 @@ export class GmailTools {
       const formattedBody = this.formatEmailBody(body, contentType);
       const message = {
         raw: Buffer.from(
-          `To: ${this.sanitizeHeader(to)}\r\n` +
-          `Subject: ${this.sanitizeHeader(subject)}\r\n` +
-          `Cc: ${cc.map((c: string) => this.sanitizeHeader(c)).join(', ')}\r\n` +
+          `To: ${this.encodeMimeHeader(to)}\r\n` +
+          `Subject: ${this.encodeMimeHeader(subject)}\r\n` +
+          `Cc: ${cc.map((c: string) => this.encodeMimeHeader(c)).join(', ')}\r\n` +
           `Content-Type: ${contentType}; charset="UTF-8"\r\n` +
+          `MIME-Version: 1.0\r\n` +
+          `Content-Transfer-Encoding: 8bit\r\n` +
           `\r\n` +
-          `${formattedBody}`
+          `${formattedBody}`,
+          'utf-8'
         ).toString('base64url')
       };
 
@@ -871,12 +888,15 @@ export class GmailTools {
         raw: Buffer.from(
           `In-Reply-To: ${this.sanitizeHeader(originalMessageId)}\r\n` +
           `References: ${this.sanitizeHeader(originalMessageId)}\r\n` +
-          `Subject: Re: ${this.sanitizeHeader(headers.subject || '')}\r\n` +
-          `To: ${this.sanitizeHeader(headers.from || '')}\r\n` +
-          `Cc: ${cc.map((c: string) => this.sanitizeHeader(c)).join(', ')}\r\n` +
+          `Subject: ${this.encodeMimeHeader(`Re: ${headers.subject || ''}`)}\r\n` +
+          `To: ${this.encodeMimeHeader(headers.from || '')}\r\n` +
+          `Cc: ${cc.map((c: string) => this.encodeMimeHeader(c)).join(', ')}\r\n` +
           `Content-Type: ${contentType}; charset="UTF-8"\r\n` +
+          `MIME-Version: 1.0\r\n` +
+          `Content-Transfer-Encoding: 8bit\r\n` +
           `\r\n` +
-          `${formattedReplyBody}`
+          `${formattedReplyBody}`,
+          'utf-8'
         ).toString('base64url'),
         threadId: threadId
       };
